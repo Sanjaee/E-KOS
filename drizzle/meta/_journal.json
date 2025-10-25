@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1736433443093,
-      "tag": "0000_real_scarlet_spider",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1736435184494,
-      "tag": "0001_careless_marvex",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1736519257678,
-      "tag": "0002_right_wolf_cub",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1736522077291,
-      "tag": "0003_watery_titania",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1736567656645,
-      "tag": "0004_flimsy_terror",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1736652398769,
-      "tag": "0005_absent_quasar",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1743242566202,
-      "tag": "0006_opposite_butterfly",
+      "when": 1761382044715,
+      "tag": "0000_nosy_the_initiative",
       "breakpoints": true
     }
   ]

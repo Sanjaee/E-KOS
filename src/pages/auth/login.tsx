@@ -1,5 +1,5 @@
-import { ArrowLeft, Mail, Lock, Eye, EyeOff, X } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { ArrowLeft, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useSession, signIn } from "next-auth/react";
 import { useRouter } from "next/router";
 import Image from "next/image";
@@ -21,11 +21,6 @@ export default function LoginPage() {
   const { callbackUrl, error, from } = router.query;
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const googleWindowRef = useRef<Window | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
   const [formData, setFormData] = useState<LoginForm>({
     email: "",
     password: "",
@@ -33,6 +28,7 @@ export default function LoginPage() {
 
   // Store referrer in session storage when the component mounts
   useEffect(() => {
+    // Only save the referrer if it's not already in the URL and if we don't have a 'from' parameter
     if (
       !callbackUrl &&
       !from &&
@@ -45,7 +41,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     // Redirect if authenticated and not loading
-    if (status === "authenticated" && !isLoading && !googleLoading) {
+    if (status === "authenticated" && !isLoading) {
+      // Priority for redirect:
+      // 1. callbackUrl from query params
+      // 2. 'from' parameter (added for back navigation)
+      // 3. Stored referrer (if not from an auth page)
+      // 4. Default to home
       const storedReferrer = sessionStorage.getItem("loginReferrer");
       const redirectUrl =
         callbackUrl?.toString() ||
@@ -54,11 +55,13 @@ export default function LoginPage() {
           ? storedReferrer
           : "/");
 
+      // Use replace to prevent back navigation to login
       router.replace(redirectUrl);
+
+      // Clear stored referrer after successful redirect
       sessionStorage.removeItem("loginReferrer");
-      setShowGoogleModal(false);
     }
-  }, [status, router, callbackUrl, from, isLoading, googleLoading]);
+  }, [status, router, callbackUrl, from, isLoading]);
 
   useEffect(() => {
     if (error === "EMAIL_NOT_VERIFIED") {
@@ -78,6 +81,7 @@ export default function LoginPage() {
       setIsLoading(true);
       const validatedData = loginSchema.parse(formData);
 
+      // Get redirect URL with fallbacks
       const storedReferrer = sessionStorage.getItem("loginReferrer");
       const redirectUrl =
         callbackUrl?.toString() ||
@@ -107,6 +111,7 @@ export default function LoginPage() {
           throw new Error(result.error);
         }
       } else if (result?.ok) {
+        // Clear stored referrer and use replace to prevent back navigation
         sessionStorage.removeItem("loginReferrer");
         router.replace(result.url || redirectUrl || "/");
       }
@@ -135,117 +140,10 @@ export default function LoginPage() {
     }
   };
 
-  // Google Sign In dengan Popup Modal
-  const handleGoogleSignIn = async () => {
-    try {
-      setShowGoogleModal(true);
-      setGoogleLoading(true);
-  
-      const storedReferrer = sessionStorage.getItem("loginReferrer");
-      const redirectUrl =
-        callbackUrl?.toString() ||
-        from?.toString() ||
-        (storedReferrer && !storedReferrer.includes("/auth/")
-          ? storedReferrer
-          : "/");
-      
-      // ✅ Buka popup SINKRON dan kosong dulu supaya gesture klik tetap aktif
-      googleWindowRef.current = window.open(
-        "about:blank",
-        `google-signin-${Date.now()}`,
-        `width=500,height=600,left=${window.innerWidth / 2 - 250},top=${window.innerHeight / 2 - 300},resizable=yes,scrollbars=yes,popup=yes`
-      );
-
-      if (!googleWindowRef.current) {
-        toast({
-          title: "Popup Blocked",
-          description: "Please disable popup blocker and try again.",
-          variant: "destructive",
-        });
-        setGoogleLoading(false);
-        setShowGoogleModal(false);
-        return;
-      }
-
-      // ✅ Minta URL Google ke NextAuth TANPA redirect agar cookies (state/PKCE) diset benar
-      const result = await signIn("google", {
-        redirect: false,
-        callbackUrl: redirectUrl,
-      });
-
-      if (result?.error) {
-        toast({
-          title: "Login error",
-          description: result.error,
-          variant: "destructive",
-        });
-        setGoogleLoading(false);
-        if (googleWindowRef.current) googleWindowRef.current.close();
-        return;
-      }
-
-      if (!result?.url) {
-        toast({
-          title: "Login error",
-          description: "Failed to start Google login.",
-          variant: "destructive",
-        });
-        setGoogleLoading(false);
-        if (googleWindowRef.current) googleWindowRef.current.close();
-        return;
-      }
-
-      // ✅ Arahkan popup ke halaman Google (tetap di popup, bukan window utama)
-      googleWindowRef.current.location.href = result.url;
-
-      // ✅ Poll session tiap detik saat popup ditutup
-      pollIntervalRef.current = setInterval(async () => {
-        if (googleWindowRef.current?.closed) {
-          clearInterval(pollIntervalRef.current!);
-
-          const res = await fetch("/api/auth/session");
-          const sessionData = await res.json();
-
-          if (sessionData?.user) {
-            toast({ title: "Login successful", variant: "default" });
-            sessionStorage.removeItem("loginReferrer");
-            router.replace(redirectUrl || "/");
-          } else {
-            toast({ title: "Login cancelled", variant: "destructive" });
-          }
-
-          setGoogleLoading(false);
-          setShowGoogleModal(false);
-        }
-      }, 1000);
-    } catch (error) {
-      console.error("Login error:", error);
-      toast({
-        title: "Login error",
-        description: "An error occurred during Google login.",
-        variant: "destructive",
-      });
-      setGoogleLoading(false);
-      setShowGoogleModal(false);
-      if (googleWindowRef.current) googleWindowRef.current.close();
-    }
-  };
-  
-
-  const closeGoogleModal = () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-    }
-    if (googleWindowRef.current) {
-      googleWindowRef.current.close();
-    }
-    setShowGoogleModal(false);
-    setGoogleLoading(false);
-  };
-
   useEffect(() => {
     const errorMessage = router.query.error;
     if (errorMessage && typeof errorMessage === "string") {
+      // Clear error from URL
       const { error, ...restQuery } = router.query;
       router.replace(
         {
@@ -258,7 +156,49 @@ export default function LoginPage() {
     }
   }, [router.query.error]);
 
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      // Get redirect URL with fallbacks
+      const storedReferrer = sessionStorage.getItem("loginReferrer");
+      const redirectUrl =
+        callbackUrl?.toString() ||
+        from?.toString() ||
+        (storedReferrer && !storedReferrer.includes("/auth/")
+          ? storedReferrer
+          : "/");
+
+      const result = await signIn("google", {
+        redirect: false,
+        callbackUrl: redirectUrl,
+      });
+
+      if (result?.error) {
+        toast({
+          title: "Login error",
+          description: result.error,
+          variant: "destructive",
+        });
+      } else if (result?.url) {
+        // Clear stored referrer before redirect
+        sessionStorage.removeItem("loginReferrer");
+        router.replace(result.url);
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      toast({
+        title: "Login error",
+        description: "An error occurred during Google login.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleBack = () => {
+    // Enhanced back handling to prevent looping
+    // If 'from=home' is in the URL, always go home
     if (from === "home") {
       router.push("/");
       return;
@@ -266,13 +206,17 @@ export default function LoginPage() {
 
     const referrer = document.referrer;
 
+    // Check if we came from register or forgot-password pages
     if (referrer.includes("/auth/")) {
+      // For any auth pages, go home to avoid loops
       router.push("/");
     } else {
+      // Otherwise use normal back behavior
       router.back();
     }
   };
 
+  // Show loading while checking status
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -281,6 +225,7 @@ export default function LoginPage() {
     );
   }
 
+  // Don't show anything if authenticated (prevents flash content)
   if (status === "authenticated") {
     return null;
   }
@@ -288,7 +233,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen pt-24 pb-44 flex items-center justify-center bg-gray-50 dark:bg-gray-900 relative">
       <LoadingOverlay isLoading={isLoading} />
-      
       <button
         onClick={handleBack}
         disabled={isLoading}
@@ -396,11 +340,11 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={isLoading || googleLoading}
+              disabled={isLoading}
               className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md 
                        shadow-sm text-sm font-medium text-white bg-blue-600 
                        ${
-                         isLoading || googleLoading
+                         isLoading
                            ? "opacity-50 cursor-not-allowed"
                            : "hover:bg-blue-700"
                        } 
@@ -431,20 +375,19 @@ export default function LoginPage() {
           <div className="mt-6">
             <button
               onClick={handleGoogleSignIn}
-              disabled={isLoading || googleLoading}
-              type="button"
+              disabled={isLoading}
               className={`w-full flex items-center justify-center gap-3 px-4 py-3 border 
                        border-gray-300 dark:border-gray-600 rounded-lg shadow-sm 
                        bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 
                        ${
-                         isLoading || googleLoading
+                         isLoading
                            ? "opacity-50 cursor-not-allowed"
                            : "hover:bg-gray-50 dark:hover:bg-gray-600"
                        } 
                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 
                        transition-all duration-200`}
             >
-              {googleLoading ? (
+              {isLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-gray-900 dark:border-white"></div>
                   <span>Logging in...</span>

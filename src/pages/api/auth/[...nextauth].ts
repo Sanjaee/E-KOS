@@ -198,37 +198,13 @@ export const authOptions: NextAuthOptions = {
         console.error('Session error:', error);
         throw error;
       }
-    },
-
-    async redirect({ url, baseUrl }) {
-      // Jika URL sudah absolute dan dari domain yang sama, gunakan
-      if (url.startsWith(baseUrl)) return url;
-      
-      // Jika hanya path saja
-      else if (url.startsWith("/")) return `${baseUrl}${url}`;
-      
-      // Default fallback
-      else return baseUrl;
     }
   },
-
-  events: {
-    async signIn({ user, account, profile, isNewUser }) {
-      // Log sign in event
-      console.log('User signed in:', {
-        email: user.email,
-        provider: account?.provider,
-        isNewUser,
-      });
-    },
-  },
-
   pages: {
     signIn: "/auth/login",
     error: '/auth/login',
     newUser: '/auth/register'
   },
-
   debug: process.env.NODE_ENV === 'development',
 };
 
