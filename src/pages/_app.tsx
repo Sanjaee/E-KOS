@@ -154,7 +154,7 @@ export default function App({
       </Head>
 
       <SessionProvider session={session}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           {/* Render navbar jika path tidak ada dalam disableNavbar */}
           {!disableNavbar.includes(pathname.split("/")[1]) && <Navbar />}
 
